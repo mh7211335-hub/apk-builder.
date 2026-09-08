@@ -1,0 +1,74 @@
+name: Build Android APK
+
+on:
+  repository_dispatch:
+    types: [build_apk]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies & Buildozer
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5
+        pip install --upgrade pip
+        pip install buildozer cython==0.29.33
+
+    - name: Create App Source Code
+      run: |
+        cat << 'EOF' > main.py
+        from kivy.app import App
+        from kivy.uix.label import Label
+        class MainApp(App):
+            def build(self):
+                return Label(text='${{ github.event.client.payload.app_name }} - ${{ github.event.client.payload.specifications }}')
+        if __name__ == '__main__':
+            MainApp().run()
+        EOF
+
+    - name: Create Buildozer Spec
+      run: |
+        app_name="${{ github.event.client.payload.app_name }}"
+        if [ -z "$app_name" ]; then app_name="QuranApp"; fi
+        
+        cat << EOF > buildozer.spec
+        [app]
+        title = $app_name
+        package.name = quranapp
+        package.domain = org.ai
+        source.include_exts = py,png,jpg,kv,atlas
+        version = 1.0
+        requirements = python3,kivy
+        orientation = portrait
+        fullscreen = 0
+        android.permissions = INTERNET
+        [buildozer]
+        log_level = 2
+        warn_on_root = 1
+        EOF
+
+    - name: Build APK with Buildozer
+      run: |
+        buildozer -v android debug
+
+    - name: Upload and Send APK to Telegram
+      env:
+        BOT_TOKEN: ${{ github.event.client.payload.bot_token }}
+        CHAT_ID: ${{ github.event.client.payload.chat_id }}
+      run: |
+        apk_file=$(ls bin/*.apk | head -n 1)
+        echo "Found APK: $apk_file"
+        curl -F "chat_id=$CHAT_ID" \
+             -F "document=@$apk_file" \
+             -F "caption=🚀 تم تجميع ملف الـ APK الحقيقي بنجاح من السيرفر السحابي وجاهز للتثبيت!" \
+             https://api.telegram.org/bot$BOT_TOKEN/sendDocument
