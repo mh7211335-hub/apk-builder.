@@ -1,6 +1,7 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch:
   repository_dispatch:
     types: [build_apk]
 
@@ -20,7 +21,7 @@ jobs:
     - name: Install Dependencies & Buildozer
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libffi-dev libssl-dev
         pip install --upgrade pip
         pip install buildozer cython==0.29.33
 
@@ -31,31 +32,18 @@ jobs:
         from kivy.uix.label import Label
         class MainApp(App):
             def build(self):
-                return Label(text='${{ github.event.client.payload.app_name }} - ${{ github.event.client.payload.specifications }}')
+                return Label(text='App Built Successfully!')
         if __name__ == '__main__':
             MainApp().run()
         EOF
 
     - name: Create Buildozer Spec
       run: |
-        app_name="${{ github.event.client.payload.app_name }}"
-        if [ -z "$app_name" ]; then app_name="QuranApp"; fi
-        
-        cat << EOF > buildozer.spec
-        [app]
-        title = $app_name
-        package.name = quranapp
-        package.domain = org.ai
-        source.include_exts = py,png,jpg,kv,atlas
-        version = 1.0
-        requirements = python3,kivy
-        orientation = portrait
-        fullscreen = 0
-        android.permissions = INTERNET
-        [buildozer]
-        log_level = 2
-        warn_on_root = 1
-        EOF
+        buildozer init
+        sed -i 's/#title = My Application/title = MyKivyApp/' buildozer.spec
+        sed -i 's/#package.name = myapp/package.name = mykivyapp/' buildozer.spec
+        sed -i 's/#package.domain = org.example/package.domain = org.app/' buildozer.spec
+        sed -i 's/#requirements = python3,kivy/requirements = python3,kivy/' buildozer.spec
 
     - name: Build APK with Buildozer
       run: |
@@ -63,12 +51,13 @@ jobs:
 
     - name: Upload and Send APK to Telegram
       env:
-        BOT_TOKEN: ${{ github.event.client.payload.bot_token }}
-        CHAT_ID: ${{ github.event.client.payload.chat_id }}
+        BOT_TOKEN: "8793872193:AAHSq0MsMXI4vUogA33j-33gbDdIWSw4dbY"
+        CHAT_ID: "7293198031"
       run: |
-        apk_file=$(ls bin/*.apk | head -n 1)
+        apk_file=$(ls bin/*.apk | head -1)
         echo "Found APK: $apk_file"
-        curl -F "chat_id=$CHAT_ID" \
-             -F "document=@$apk_file" \
-             -F "caption=🚀 تم تجميع ملف الـ APK الحقيقي بنجاح من السيرفر السحابي وجاهز للتثبيت!" \
+        curl -F chat_id="$CHAT_ID" \
+             -F document=@"$apk_file" \
+             -F caption="🚀 تم بنجاح بناء تطبيق الأندرويد وإرساله إليك يا غالي!" \
              https://api.telegram.org/bot$BOT_TOKEN/sendDocument
+
