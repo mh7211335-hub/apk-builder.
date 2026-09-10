@@ -47,7 +47,7 @@ jobs:
         sed -i 's/#requirements = python3,kivy/requirements = python3,kivy/' buildozer.spec
 
     - name: Build APK with Buildozer
-  ش    run: |
+      run: |
         buildozer -v android debug
 
     - name: Upload and Send APK to Telegram
